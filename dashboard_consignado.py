@@ -136,11 +136,80 @@ graf_liberado = alt.Chart(base).mark_bar(color=cor).encode(
 st.subheader("📊 Valor Liberado por Central")
 st.altair_chart(graf_liberado, use_container_width=True)
 
+# ---------------- BASE AGRUPADA POR SINGULAR ----------------
+base_singular = (
+    tabela
+    .groupby("SINGULAR", as_index=False)
+    .sum()
+)
+
+#produção diária
+
+producao = pd.read_excel(
+    "campanha_consignado_2026.xlsx",
+    sheet_name="Produção Diária"
+)
+
+# Blindagem de colunas
+producao.columns = (
+    producao.columns
+    .str.strip()
+    .str.upper()
+)
+
+producao["DATA"] = pd.to_datetime(producao["DATA"])
+
+st.subheader("📅 Período Produção Diária")
+
+data_min = producao["DATA"].min()
+data_max = producao["DATA"].max()
+
+periodo = st.date_input(
+    "Selecione o período",
+    value=(data_min, data_max),
+    min_value=data_min,
+    max_value=data_max,
+    format="DD/MM/YYYY"
+)
+
+if len(periodo) == 2:
+    inicio, fim = periodo
+    producao = producao[
+        (producao["DATA"] >= pd.to_datetime(inicio)) &
+        (producao["DATA"] <= pd.to_datetime(fim))
+    ]
+
+tabela_producao = producao[[
+    "DATA",
+    "VALOR CADASTRADO CCS",
+    "VALOR LIBERADO CCS",
+    "VALOR CADASTRADO RP",
+    "VALOR LIBERADO RP",
+    "VALOR TOTAL CADASTRADO",
+    "VALOR TOTAL LIBERADO"
+]].copy()
+
+colunas_valor = tabela_producao.columns.drop("DATA")
+
+for col in colunas_valor:
+    tabela_producao[col] = tabela_producao[col].apply(formata_real)
+
+# Formatar data (dd/mm/aaaa)
+tabela_producao["DATA"] = tabela_producao["DATA"].dt.strftime("%d/%m/%Y")
+
+st.subheader("📋 Produção Diária")
+
+st.dataframe(
+    tabela_producao.sort_values("DATA"),
+    use_container_width=True,
+    hide_index=True
+)
+
 # ---------------- TOP 10 ----------------
-st.subheader("🏆 Top 10 Centrais por Valor Liberado")
+st.subheader("🏆 Top 10 Cooperativas por Valor Liberado")
 
 ranking = (
-    base
+    base_singular
     .sort_values("LIBERADO ACUMULADO (RP + CCS)", ascending=False)
     .head(10)
     .copy()
@@ -156,8 +225,11 @@ def medalha(pos):
 
 ranking[""] = ranking["POSIÇÃO"].apply(medalha)
 
+# Formatação em Real (padrão BR)
+ranking["VALOR LIBERADO"] = ranking["LIBERADO ACUMULADO (RP + CCS)"].apply(formata_real)
+
 st.dataframe(
-    ranking[["", "CENTRAL", "LIBERADO ACUMULADO (RP + CCS)"]],
+    ranking[["", "SINGULAR", "VALOR LIBERADO"]],
     use_container_width=True,
     hide_index=True
 )
